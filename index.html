@@ -345,39 +345,48 @@ function setSyncStatus(state) {
 }
 
 /* ---- REALTIME LISTENERS ---- */
+let activeTab = 'oversikt';
+const loadedCols = new Set();
+
+function checkOverview() {
+  if (loadedCols.has('weights') && loadedCols.has('training') && loadedCols.has('food') && activeTab==='oversikt') {
+    renderOverview();
+  }
+}
+
 function setupListeners() {
   onSnapshot(collection(db,'weights'), snap => {
     store.weights = snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
-    renderIfActive('vekt', renderWeightLog);
-    renderIfActive('oversikt', renderOverview);
+    loadedCols.add('weights');
+    if (activeTab==='vekt') renderWeightLog();
+    checkOverview();
     setSyncStatus('ok');
   }, ()=>setSyncStatus('err'));
 
   onSnapshot(collection(db,'training'), snap => {
     store.training = snap.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date));
-    renderIfActive('trening', renderTrainingLog);
-    renderIfActive('oversikt', renderOverview);
+    loadedCols.add('training');
+    if (activeTab==='trening') renderTrainingLog();
+    checkOverview();
   }, ()=>setSyncStatus('err'));
 
   onSnapshot(collection(db,'food'), snap => {
     store.food = snap.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date));
-    renderIfActive('mat', renderFoodLog);
-    renderIfActive('oversikt', renderOverview);
+    loadedCols.add('food');
+    if (activeTab==='mat') renderFoodLog();
+    checkOverview();
   }, ()=>setSyncStatus('err'));
 
   onSnapshot(collection(db,'customFood'), snap => {
     store.customFood = snap.docs.map(d=>d.data());
-    renderIfActive('innstillinger', renderCustomFoodList);
+    if (activeTab==='innstillinger') renderCustomFoodList();
   }, ()=>setSyncStatus('err'));
 
   onSnapshot(doc(db,'meta','settings'), snap => {
     if (snap.exists()) Object.assign(store.settings, snap.data());
-    renderIfActive('innstillinger', renderSettings);
+    if (activeTab==='innstillinger') renderSettings();
   }, ()=>setSyncStatus('err'));
 }
-
-let activeTab = 'oversikt';
-function renderIfActive(tab, fn) { if (activeTab === tab || tab === 'oversikt') fn(); }
 
 /* ---- UTILS ---- */
 function today() { return new Date().toISOString().slice(0,10); }
@@ -752,7 +761,6 @@ function renderOverview() {
 
 /* ---- INIT ---- */
 setupListeners();
-renderOverview();
 </script>
 </body>
 </html>
