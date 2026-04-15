@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helsetracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F6F2; --surface: #FFFFFF; --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.15);
+    --text: #1A1A18; --muted: #6B6B66; --accent: #2D6A4F; --accent-light: #E8F5EE; --accent-mid: #9FD4B5;
+    --warn: #C4873A; --warn-light: #FDF3E7; --danger: #C0392B; --radius: 12px; --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.6; min-height: 100vh; }
+  header { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .header-left { display: flex; align-items: baseline; gap: 1rem; }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; color: var(--accent); letter-spacing: -0.3px; }
+  header span { font-size: 13px; color: var(--muted); }
+  .sync-status { font-size: 12px; padding: 4px 12px; border-radius: 99px; font-weight: 500; }
+  .sync-ok { background: var(--accent-light); color: var(--accent); }
+  .sync-err { background: #FDECEA; color: var(--danger); }
+  .sync-loading { background: #F1EFE8; color: var(--muted); }
+  nav { display: flex; gap: 4px; padding: 1rem 2rem 0; border-bottom: 0.5px solid var(--border); background: var(--surface); overflow-x: auto; }
+  nav button { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; padding: 8px 16px; border: none; background: none; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -0.5px; transition: color .15s, border-color .15s; white-space: nowrap; }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav button:hover { color: var(--text); }
+  main { max-width: 880px; margin: 0 auto; padding: 2rem; }
+  .panel { display: none; } .panel.active { display: block; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 2rem; }
+  .metric { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; }
+  .metric-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .metric-value { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; color: var(--text); line-height: 1; }
+  .metric-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .metric.good .metric-value { color: var(--accent); } .metric.warn .metric-value { color: var(--warn); }
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+  .card h3 { font-family: 'DM Serif Display', serif; font-size: 16px; font-weight: 400; margin-bottom: 1rem; color: var(--text); }
+  .form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 100px; }
+  .form-group label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  input[type=text], input[type=number], input[type=date], select {
+    font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 8px 12px;
+    border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--bg); color: var(--text); outline: none; width: 100%; transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
+  button.btn { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; padding: 9px 18px; border-radius: var(--radius-sm); border: 0.5px solid var(--accent); background: var(--accent); color: white; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+  button.btn:hover { opacity: .88; }
+  button.btn.danger { background: transparent; border-color: var(--border-strong); color: var(--muted); font-size: 11px; padding: 5px 10px; }
+  button.btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .log-list { display: flex; flex-direction: column; gap: 6px; margin-top: .5rem; }
+  .log-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg); border-radius: var(--radius-sm); border: 0.5px solid var(--border); gap: 10px; }
+  .log-item-left { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .log-item-date { font-size: 11px; color: var(--muted); }
+  .log-item-main { font-size: 14px; font-weight: 500; }
+  .log-item-sub { font-size: 12px; color: var(--muted); }
+  .pill { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+  .pill-green { background: var(--accent-light); color: var(--accent); }
+  .pill-amber { background: var(--warn-light); color: var(--warn); }
+  .pill-purple { background: #EEEDFE; color: #3C3489; }
+  .pill-gray { background: #F1EFE8; color: #5F5E5A; }
+  canvas { width: 100% !important; }
+  .chart-wrap { position: relative; height: 200px; margin-top: 1rem; }
+  .section-title { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 1.5rem 0 .75rem; }
+  .empty { font-size: 13px; color: var(--muted); padding: 1rem 0; text-align: center; }
+  .kcal-bar-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin: 6px 0; }
+  .kcal-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width .4s; }
+  .kcal-bar-fill.over { background: var(--warn); }
+  .kcal-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); z-index: 100; max-height: 220px; overflow-y: auto; margin-top: 2px; }
+  .autocomplete-item { padding: 9px 12px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border); }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover { background: var(--accent-light); }
+  .ac-kcal { font-size: 12px; color: var(--muted); }
+  .ac-unit { font-size: 10px; color: var(--accent-mid); margin-left: 4px; }
+  .calc-result { background: var(--accent-light); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; font-size: 14px; color: var(--accent); font-weight: 500; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; font-style: italic; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .info-box { background: var(--accent-light); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 1rem; line-height: 1.6; }
+  .custom-food-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 0.5px solid var(--border); font-size: 13px; }
+  .custom-food-item:last-child { border-bottom: none; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent-mid); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 600px) { main { padding: 1rem; } header { padding: 1rem; } .two-col { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <h1>Helsetracker</h1>
+    <span id="header-date"></span>
+  </div>
+  <div id="sync-indicator" class="sync-status sync-loading"><span class="spinner"></span>Kobler til...</div>
+</header>
+<nav>
+  <button class="active" onclick="showTab('oversikt',this)">Oversikt</button>
+  <button onclick="showTab('vekt',this)">Vekt</button>
+  <button onclick="showTab('trening',this)">Trening</button>
+  <button onclick="showTab('mat',this)">Mat</button>
+  <button onclick="showTab('kalkulator',this)">Kalkulator</button>
+  <button onclick="showTab('innstillinger',this)">Innstillinger</button>
+</nav>
+<main>
+
+<!-- OVERSIKT -->
+<div id="tab-oversikt" class="panel active">
+  <div class="metrics" id="overview-metrics"></div>
+  <div class="card">
+    <h3>Vektutvikling</h3>
+    <div class="chart-wrap"><canvas id="weight-chart"></canvas></div>
+  </div>
+  <div class="section-title">Siste aktivitet</div>
+  <div id="recent-activity" class="log-list"></div>
+</div>
+
+<!-- VEKT -->
+<div id="tab-vekt" class="panel">
+  <div class="card">
+    <h3>Registrer vekt</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Dato</label><input type="date" id="w-date"></div>
+      <div class="form-group" style="max-width:130px;"><label>Vekt (kg)</label><input type="number" id="w-kg" step="0.1" min="50" max="200" placeholder="99.0"></div>
+      <div class="form-group"><label>Notat</label><input type="text" id="w-note" placeholder="f.eks. etter frokost"></div>
+      <button class="btn" onclick="saveWeight()">Lagre</button>
+    </div>
+  </div>
+  <div class="section-title">Logg</div>
+  <div id="weight-log" class="log-list"></div>
+</div>
+
+<!-- TRENING -->
+<div id="tab-trening" class="panel">
+  <div class="card">
+    <h3>Logg økt</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Dato</label><input type="date" id="t-date"></div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="t-type" onchange="estimateTrainingKcal()">
+          <option>HIIT – Sats</option><option>Styrke – Sats</option><option>Sone 2 løp</option>
+          <option>Intervall løp</option><option>Kettlebell hjemme</option><option>Gåtur</option>
+          <option>Aktiv hvile</option><option>Annet</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:100px;"><label>Varighet (min)</label><input type="number" id="t-min" min="5" max="180" placeholder="45" oninput="estimateTrainingKcal()"></div>
+      <div class="form-group" style="max-width:120px;">
+        <label>Intensitet</label>
+        <select id="t-intensity" onchange="estimateTrainingKcal()">
+          <option value="0.85">Rolig</option><option value="1" selected>Normal</option>
+          <option value="1.15">Hard</option><option value="1.3">Meget hard</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:110px;">
+        <label>Kcal <span style="color:var(--accent);font-size:10px;">auto</span></label>
+        <input type="number" id="t-kcal" min="0" max="2000" placeholder="–">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Notat</label><input type="text" id="t-note" placeholder="f.eks. 5x5 markløft 80 kg"></div>
+      <button class="btn" onclick="saveTraining()">Lagre</button>
+    </div>
+    <div id="t-hint" class="hint"></div>
+  </div>
+  <div class="section-title">Treningslogg</div>
+  <div id="training-log" class="log-list"></div>
+</div>
+
+<!-- MAT -->
+<div id="tab-mat" class="panel">
+  <div class="card">
+    <h3>Logg måltid</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Dato</label><input type="date" id="m-date"></div>
+      <div class="form-group" style="max-width:120px;">
+        <label>Måltid</label>
+        <select id="m-meal"><option>Frokost</option><option>Lunsj</option><option>Middag</option><option>Kvelds</option><option>Snacks</option></select>
+      </div>
+      <div class="form-group autocomplete-wrap">
+        <label>Matvare <span style="color:var(--accent);font-size:10px;">søk</span></label>
+        <input type="text" id="m-desc" placeholder="havregrøt, egg, kylling..." oninput="foodSearch()" autocomplete="off">
+        <div id="food-suggestions" class="autocomplete-list" style="display:none;"></div>
+      </div>
+      <div class="form-group" style="max-width:90px;"><label>Kcal</label><input type="number" id="m-kcal" min="0" max="3000" placeholder="400"></div>
+      <div class="form-group" style="max-width:100px;"><label>Mengde</label><input type="text" id="m-amount" placeholder="60g"></div>
+      <button class="btn" onclick="saveMeal()">Lagre</button>
+    </div>
+  </div>
+  <div class="section-title">Dagens oversikt</div>
+  <div id="today-kcal-summary"></div>
+  <div class="section-title">Matlogg</div>
+  <div id="food-log" class="log-list"></div>
+</div>
+
+<!-- KALKULATOR -->
+<div id="tab-kalkulator" class="panel">
+  <div class="two-col">
+    <div class="card">
+      <h3>Treningskalkulator</h3>
+      <div class="form-group" style="margin-bottom:10px;"><label>Type</label>
+        <select id="calc-type" onchange="calcTraining()">
+          <option value="hiit">HIIT</option><option value="styrke">Styrke</option>
+          <option value="sone2">Sone 2 løp</option><option value="intervall">Intervall løp</option>
+          <option value="kb">Kettlebell</option><option value="gaa">Gåtur</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Varighet (min)</label><input type="number" id="calc-min" value="45" min="5" max="180" oninput="calcTraining()"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Kroppsvekt (kg)</label><input type="number" id="calc-weight" value="99" min="50" max="150" oninput="calcTraining()"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Intensitet</label>
+        <select id="calc-intensity" onchange="calcTraining()">
+          <option value="0.85">Rolig</option><option value="1" selected>Normal</option>
+          <option value="1.15">Hard</option><option value="1.3">Meget hard</option>
+        </select>
+      </div>
+      <div id="calc-result" class="calc-result">– kcal</div>
+      <div id="calc-desc" class="hint"></div>
+    </div>
+    <div class="card"><h3>Hurtigguide trening</h3><div id="training-guide"></div></div>
+  </div>
+  <div class="card" style="margin-top:0;">
+    <h3>Hurtigguide mat</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Klikk for å legge til i matlogg.</div>
+    <div id="food-guide" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;"></div>
+  </div>
+</div>
+
+<!-- INNSTILLINGER -->
+<div id="tab-innstillinger" class="panel">
+  <div class="two-col">
+    <div class="card">
+      <h3>Mål og kalorier</h3>
+      <div class="info-box" id="settings-info"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Målvekt (kg)</label><input type="number" id="s-goal" step="0.5" min="60" max="120" placeholder="88"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Kaloribudsjett per dag</label><input type="number" id="s-kcal" step="50" min="1500" max="4000" placeholder="2400"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Startvekt (kg)</label><input type="number" id="s-start" step="0.5" min="60" max="150" placeholder="99"></div>
+      <div class="form-group" style="margin-bottom:14px;"><label>Kroppsvekt nå (for kalkulator)</label><input type="number" id="s-bodyweight" step="0.5" min="60" max="150" placeholder="99"></div>
+      <button class="btn" onclick="saveSettings()">Lagre innstillinger</button>
+      <div id="settings-saved" style="font-size:12px;color:var(--accent);margin-top:8px;display:none;">Innstillinger lagret og synkronisert.</div>
+    </div>
+    <div class="card">
+      <h3>Mine matvarer</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Egne matvarer vises øverst i søket (★).</div>
+      <div class="form-row" style="margin-bottom:12px;">
+        <div class="form-group"><label>Navn</label><input type="text" id="cf-name" placeholder="Yoghurt Litago 150g"></div>
+        <div class="form-group" style="max-width:90px;"><label>Kcal</label><input type="number" id="cf-kcal" min="0" max="2000" placeholder="120"></div>
+        <div class="form-group" style="max-width:100px;"><label>Enhet</label><input type="text" id="cf-unit" placeholder="1 stk"></div>
+        <button class="btn" onclick="saveCustomFood()">Legg til</button>
+      </div>
+      <div id="custom-food-list"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD4-zvByjVK6bslMkHvKi8p8SbIpd1EuTc",
+  authDomain: "helsetracker.firebaseapp.com",
+  projectId: "helsetracker",
+  storageBucket: "helsetracker.firebasestorage.app",
+  messagingSenderId: "466310871682",
+  appId: "1:466310871682:web:91c9314f8353105b75529b"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ---- STATIC DATA ---- */
+const FOOD_DB = [
+  { name:'Egg (1 stk)', kcal:78, unit:'1 stk', tags:['egg'] },
+  { name:'Egg (2 stk)', kcal:156, unit:'2 stk', tags:['egg'] },
+  { name:'Egg (3 stk)', kcal:234, unit:'3 stk', tags:['egg'] },
+  { name:'Bacon (3 skiver)', kcal:110, unit:'3 skiver', tags:['bacon'] },
+  { name:'Havregrøt (60g tørr)', kcal:225, unit:'60g', tags:['havre','havregrøt','grøt'] },
+  { name:'Havregrøt m/melk', kcal:295, unit:'porsjon', tags:['havre','havregrøt'] },
+  { name:'Honning (1 ts)', kcal:25, unit:'1 ts', tags:['honning'] },
+  { name:'Peanøttsmør (1 ss)', kcal:95, unit:'1 ss', tags:['peanøtt'] },
+  { name:'Banan', kcal:90, unit:'1 stk', tags:['banan','frukt'] },
+  { name:'Eple', kcal:75, unit:'1 stk', tags:['eple','frukt'] },
+  { name:'Gresk yoghurt (200g)', kcal:130, unit:'200g', tags:['yoghurt','gresk'] },
+  { name:'Skyr (200g)', kcal:120, unit:'200g', tags:['skyr','yoghurt'] },
+  { name:'Skyr m/bær', kcal:145, unit:'porsjon', tags:['skyr','bær'] },
+  { name:'Cottage cheese (150g)', kcal:115, unit:'150g', tags:['cottage'] },
+  { name:'Laks (150g)', kcal:295, unit:'150g', tags:['laks','fisk'] },
+  { name:'Kyllingbryst (150g)', kcal:165, unit:'150g', tags:['kylling'] },
+  { name:'Kyllingbryst (200g)', kcal:220, unit:'200g', tags:['kylling'] },
+  { name:'Kjøttdeig (150g)', kcal:310, unit:'150g', tags:['kjøttdeig','taco'] },
+  { name:'Biff (180g)', kcal:340, unit:'180g', tags:['biff'] },
+  { name:'Ris (100g kokt)', kcal:130, unit:'100g kokt', tags:['ris'] },
+  { name:'Pasta (80g tørr)', kcal:285, unit:'80g tørr', tags:['pasta'] },
+  { name:'Brød (1 skive grov)', kcal:80, unit:'1 skive', tags:['brød'] },
+  { name:'Knekkebrød (2 stk)', kcal:70, unit:'2 stk', tags:['knekkebrød'] },
+  { name:'Avokado (½)', kcal:120, unit:'½', tags:['avokado'] },
+  { name:'Brokkoli (100g)', kcal:35, unit:'100g', tags:['brokkoli'] },
+  { name:'Tomater (håndfull)', kcal:25, unit:'håndfull', tags:['tomat'] },
+  { name:'Salat (stor porsjon)', kcal:30, unit:'porsjon', tags:['salat'] },
+  { name:'Søtpotet (150g)', kcal:130, unit:'150g', tags:['søtpotet'] },
+  { name:'Nøtter (30g)', kcal:175, unit:'30g', tags:['nøtter'] },
+  { name:'Proteinpulver (1 dose)', kcal:120, unit:'1 dose', tags:['protein'] },
+  { name:'Kaffe svart', kcal:5, unit:'1 kopp', tags:['kaffe'] },
+  { name:'Kyllingwok m/ris', kcal:550, unit:'porsjon', tags:['wok','kylling'] },
+  { name:'Bolognese m/pasta', kcal:580, unit:'porsjon', tags:['bolognese','pasta'] },
+  { name:'Laks m/ris og brokkoli', kcal:540, unit:'porsjon', tags:['laks','ris'] },
+  { name:'Gyros (pita + kjøtt)', kcal:620, unit:'porsjon', tags:['gyros'] },
+  { name:'Biffburger (m/brød)', kcal:580, unit:'porsjon', tags:['burger','biff'] },
+  { name:'Pizza (2 skiver hjemmelaget)', kcal:480, unit:'2 skiver', tags:['pizza'] },
+  { name:'Taco (2 lefser)', kcal:520, unit:'2 lefser', tags:['taco'] },
+  { name:'Fiskesuppe', kcal:380, unit:'porsjon', tags:['fiskesuppe'] },
+  { name:'Smoothie frukt+yoghurt', kcal:280, unit:'glass', tags:['smoothie'] },
+  { name:'Potetgull (liten pose)', kcal:450, unit:'pose', tags:['potetgull','chips'] },
+  { name:'Softis', kcal:200, unit:'1 stk', tags:['is','softis'] },
+];
+
+const TRAINING_DB = {
+  hiit:     { label:'HIIT (Sats)',       kcalPerMin:10,  desc:'Høy intensitet. ~9–11 kcal/min for 95 kg.' },
+  styrke:   { label:'Styrke',            kcalPerMin:6.5, desc:'Tung styrke. ~5.5–7.5 kcal/min + god etterforbrenning.' },
+  sone2:    { label:'Sone 2 løp',        kcalPerMin:8.5, desc:'130–140 puls. ~80–90 kcal/km, lavt stress.' },
+  intervall:{ label:'Intervall løp',     kcalPerMin:12,  desc:'Hardere løp. ~10–14 kcal/min.' },
+  kb:       { label:'Kettlebell hjemme', kcalPerMin:8,   desc:'Dynamisk styrke. ~7–9 kcal/min.' },
+  gaa:      { label:'Gåtur',             kcalPerMin:4.5, desc:'Rask gange. ~60–70 kcal/km.' },
+};
+
+/* ---- IN-MEMORY STORE (populated by Firestore listeners) ---- */
+const store = { weights: [], training: [], food: [], customFood: [], settings: { goal:88, kcalTarget:2400, startWeight:99, bodyWeight:99 } };
+
+/* ---- FIRESTORE HELPERS ---- */
+async function fsSet(col, id, data) {
+  await setDoc(doc(db, col, String(id)), data);
+}
+async function fsDel(col, id) {
+  await deleteDoc(doc(db, col, String(id)));
+}
+
+/* ---- SYNC STATUS ---- */
+function setSyncStatus(state) {
+  const el = document.getElementById('sync-indicator');
+  if (state === 'ok') { el.className='sync-status sync-ok'; el.textContent='Synkronisert'; }
+  else if (state === 'err') { el.className='sync-status sync-err'; el.textContent='Feil – sjekk nett'; }
+  else { el.className='sync-status sync-loading'; el.innerHTML='<span class="spinner"></span>Laster...'; }
+}
+
+/* ---- REALTIME LISTENERS ---- */
+function setupListeners() {
+  onSnapshot(collection(db,'weights'), snap => {
+    store.weights = snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    renderIfActive('vekt', renderWeightLog);
+    renderIfActive('oversikt', renderOverview);
+    setSyncStatus('ok');
+  }, ()=>setSyncStatus('err'));
+
+  onSnapshot(collection(db,'training'), snap => {
+    store.training = snap.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date));
+    renderIfActive('trening', renderTrainingLog);
+    renderIfActive('oversikt', renderOverview);
+  }, ()=>setSyncStatus('err'));
+
+  onSnapshot(collection(db,'food'), snap => {
+    store.food = snap.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date));
+    renderIfActive('mat', renderFoodLog);
+    renderIfActive('oversikt', renderOverview);
+  }, ()=>setSyncStatus('err'));
+
+  onSnapshot(collection(db,'customFood'), snap => {
+    store.customFood = snap.docs.map(d=>d.data());
+    renderIfActive('innstillinger', renderCustomFoodList);
+  }, ()=>setSyncStatus('err'));
+
+  onSnapshot(doc(db,'meta','settings'), snap => {
+    if (snap.exists()) Object.assign(store.settings, snap.data());
+    renderIfActive('innstillinger', renderSettings);
+  }, ()=>setSyncStatus('err'));
+}
+
+let activeTab = 'oversikt';
+function renderIfActive(tab, fn) { if (activeTab === tab || tab === 'oversikt') fn(); }
+
+/* ---- UTILS ---- */
+function today() { return new Date().toISOString().slice(0,10); }
+function fmt(d) { if (!d) return ''; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}`; }
+function typeColor(t) {
+  if (t.includes('HIIT')) return 'pill-green';
+  if (t.includes('Styrke')) return 'pill-purple';
+  if (t.includes('løp')||t.includes('Intervall')) return 'pill-amber';
+  return 'pill-gray';
+}
+function mealColor(m) {
+  return {Frokost:'pill-green',Lunsj:'pill-amber',Middag:'pill-purple',Kvelds:'pill-gray',Snacks:'pill-gray'}[m]||'pill-gray';
+}
+function intensityLabel(v) {
+  return {0.85:'Rolig',1:'Normal',1.15:'Hard',1.3:'Meget hard'}[String(v)]||v;
+}
+function getWeekStart() {
+  const now=new Date(); const day=now.getDay();
+  const diff=(day===0)?6:day-1;
+  const s=new Date(now); s.setDate(now.getDate()-diff); s.setHours(0,0,0,0); return s;
+}
+
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('nb-NO',{weekday:'long',day:'numeric',month:'long'});
+['w-date','t-date','m-date'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=today(); });
+
+/* ---- TABS ---- */
+window.showTab = function(name, btn) {
+  activeTab = name;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name==='oversikt') renderOverview();
+  if (name==='vekt') renderWeightLog();
+  if (name==='trening') renderTrainingLog();
+  if (name==='mat') renderFoodLog();
+  if (name==='kalkulator') renderKalkulator();
+  if (name==='innstillinger') renderSettings();
+};
+
+/* ---- SETTINGS ---- */
+function renderSettings() {
+  const s=store.settings;
+  document.getElementById('s-goal').value=s.goal;
+  document.getElementById('s-kcal').value=s.kcalTarget;
+  document.getElementById('s-start').value=s.startWeight;
+  document.getElementById('s-bodyweight').value=s.bodyWeight;
+  const deficit=2900-s.kcalTarget;
+  document.getElementById('settings-info').innerHTML=
+    `Vedlikeholdsbehov ~2 900 kcal/dag. Budsjett på <strong>${s.kcalTarget}</strong> gir underskudd på `+
+    `<strong>${deficit}</strong> kcal/dag → ca. <strong>${((deficit*7)/7700).toFixed(1)} kg/uke</strong>.`;
+  renderCustomFoodList();
+}
+window.saveSettings = async function() {
+  const s = {
+    goal: parseFloat(document.getElementById('s-goal').value)||88,
+    kcalTarget: parseInt(document.getElementById('s-kcal').value)||2400,
+    startWeight: parseFloat(document.getElementById('s-start').value)||99,
+    bodyWeight: parseFloat(document.getElementById('s-bodyweight').value)||99,
+  };
+  Object.assign(store.settings, s);
+  await setDoc(doc(db,'meta','settings'), s);
+  const el=document.getElementById('settings-saved');
+  el.style.display='block'; setTimeout(()=>el.style.display='none',2500);
+  renderSettings();
+};
+
+/* ---- CUSTOM FOOD ---- */
+window.saveCustomFood = async function() {
+  const name=document.getElementById('cf-name').value.trim();
+  const kcal=parseInt(document.getElementById('cf-kcal').value)||0;
+  const unit=document.getElementById('cf-unit').value.trim();
+  if (!name) return;
+  const id=Date.now();
+  await fsSet('customFood', id, {name,kcal,unit,id});
+  document.getElementById('cf-name').value='';
+  document.getElementById('cf-kcal').value='';
+  document.getElementById('cf-unit').value='';
+};
+window.deleteCustomFood = async function(id) { await fsDel('customFood', id); };
+function renderCustomFoodList() {
+  const el=document.getElementById('custom-food-list');
+  if (!store.customFood.length) { el.innerHTML='<div class="empty">Ingen egne matvarer ennå.</div>'; return; }
+  el.innerHTML=store.customFood.map(f=>`
+    <div class="custom-food-item">
+      <div><span style="font-weight:500;">${f.name}</span>
+        <span style="color:var(--muted);margin-left:8px;font-size:12px;">${f.kcal} kcal${f.unit?' · '+f.unit:''}</span>
+      </div>
+      <button class="btn danger" onclick="deleteCustomFood(${f.id})">Slett</button>
+    </div>`).join('');
+}
+
+/* ---- WEIGHT ---- */
+window.saveWeight = async function() {
+  const d=document.getElementById('w-date').value;
+  const kg=parseFloat(document.getElementById('w-kg').value);
+  const note=document.getElementById('w-note').value.trim();
+  if (!d||isNaN(kg)) return alert('Fyll inn dato og vekt.');
+  const id=Date.now();
+  await fsSet('weights', id, {date:d,kg,note,id});
+  document.getElementById('w-kg').value='';
+  document.getElementById('w-note').value='';
+};
+function renderWeightLog() {
+  const s=store.settings;
+  const data=[...store.weights].reverse();
+  const el=document.getElementById('weight-log');
+  if (!data.length) { el.innerHTML='<div class="empty">Ingen vektregistreringer ennå.</div>'; return; }
+  el.innerHTML=data.map(w=>`
+    <div class="log-item">
+      <div class="log-item-left">
+        <div class="log-item-date">${fmt(w.date)}</div>
+        <div class="log-item-main">${w.kg.toFixed(1)} kg</div>
+        ${w.note?`<div class="log-item-sub">${w.note}</div>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${w.kg<=s.goal?'pill-green':w.kg<=s.goal+3?'pill-amber':'pill-gray'}">${w.kg<=s.goal?'Mål!':w.kg<=s.goal+3?'Nærmer seg':'På vei'}</span>
+        <button class="btn danger" onclick="deleteItem('weights',${w.id})">Slett</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ---- TRAINING ---- */
+window.estimateTrainingKcal = function() {
+  const type=document.getElementById('t-type').value;
+  const min=parseInt(document.getElementById('t-min').value)||0;
+  const intensity=parseFloat(document.getElementById('t-intensity').value)||1;
+  const bw=store.settings.bodyWeight||99;
+  const key=type.includes('HIIT')?'hiit':type.includes('Styrke')?'styrke':
+    type.includes('Sone 2')?'sone2':type.includes('Intervall')?'intervall':
+    type.includes('Kettlebell')?'kb':type.includes('Gåtur')?'gaa':null;
+  if (!key||!min) { document.getElementById('t-hint').textContent=''; return; }
+  const db2=TRAINING_DB[key];
+  document.getElementById('t-kcal').value=Math.round(db2.kcalPerMin*min*(bw/80)*intensity);
+  document.getElementById('t-hint').textContent=db2.desc;
+};
+window.saveTraining = async function() {
+  const d=document.getElementById('t-date').value;
+  const type=document.getElementById('t-type').value;
+  const min=parseInt(document.getElementById('t-min').value)||0;
+  const kcal=parseInt(document.getElementById('t-kcal').value)||0;
+  const intensity=document.getElementById('t-intensity').value;
+  const note=document.getElementById('t-note').value.trim();
+  if (!d) return alert('Fyll inn dato.');
+  const id=Date.now();
+  await fsSet('training', id, {date:d,type,min,kcal,intensity,note,id});
+  document.getElementById('t-min').value='';
+  document.getElementById('t-kcal').value='';
+  document.getElementById('t-note').value='';
+  document.getElementById('t-hint').textContent='';
+};
+function renderTrainingLog() {
+  const el=document.getElementById('training-log');
+  if (!store.training.length) { el.innerHTML='<div class="empty">Ingen treningsøkter ennå.</div>'; return; }
+  el.innerHTML=store.training.map(t=>`
+    <div class="log-item">
+      <div class="log-item-left">
+        <div class="log-item-date">${fmt(t.date)}</div>
+        <div class="log-item-main">${t.type}</div>
+        <div class="log-item-sub">${[t.min?t.min+' min':'',t.intensity?intensityLabel(t.intensity):'',t.kcal?t.kcal+' kcal':'',t.note].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${typeColor(t.type)}">${t.type.split('–')[0].trim()}</span>
+        <button class="btn danger" onclick="deleteItem('training',${t.id})">Slett</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ---- FOOD ---- */
+let searchTimeout=null;
+function getAllFoods() {
+  return [...store.customFood.map(f=>({...f,tags:[f.name.toLowerCase()],custom:true})),...FOOD_DB];
+}
+window.foodSearch = function() {
+  clearTimeout(searchTimeout);
+  searchTimeout=setTimeout(()=>{
+    const q=document.getElementById('m-desc').value.trim().toLowerCase();
+    const box=document.getElementById('food-suggestions');
+    if (q.length<2) { box.style.display='none'; return; }
+    const results=getAllFoods().filter(f=>f.name.toLowerCase().includes(q)||f.tags.some(t=>t.includes(q))).slice(0,10);
+    if (!results.length) { box.style.display='none'; return; }
+    box.innerHTML=results.map(f=>`
+      <div class="autocomplete-item" onclick="selectFood('${f.name.replace(/'/g,"\\'")}',${f.kcal})">
+        <span>${f.name}${f.custom?' ★':''}</span>
+        <span><span class="ac-kcal">${f.kcal} kcal</span>${f.unit?`<span class="ac-unit">${f.unit}</span>`:''}</span>
+      </div>`).join('');
+    box.style.display='block';
+  },150);
+};
+window.selectFood = function(name,kcal) {
+  document.getElementById('m-desc').value=name;
+  document.getElementById('m-kcal').value=kcal;
+  document.getElementById('food-suggestions').style.display='none';
+};
+document.addEventListener('click',e=>{ if(!e.target.closest('.autocomplete-wrap')) document.getElementById('food-suggestions').style.display='none'; });
+
+window.saveMeal = async function() {
+  const d=document.getElementById('m-date').value;
+  const meal=document.getElementById('m-meal').value;
+  const desc=document.getElementById('m-desc').value.trim();
+  const kcal=parseInt(document.getElementById('m-kcal').value)||0;
+  const amount=document.getElementById('m-amount').value.trim();
+  if (!d||!desc) return alert('Fyll inn dato og matvare.');
+  const id=Date.now();
+  await fsSet('food', id, {date:d,meal,desc,kcal,amount,id});
+  document.getElementById('m-desc').value='';
+  document.getElementById('m-kcal').value='';
+  document.getElementById('m-amount').value='';
+};
+function renderFoodLog() {
+  const s=store.settings;
+  const todayMeals=store.food.filter(m=>m.date===today());
+  const todayKcal=todayMeals.reduce((sum,m)=>sum+m.kcal,0);
+  const pct=Math.min(100,Math.round(todayKcal/s.kcalTarget*100));
+  const over=todayKcal>s.kcalTarget;
+  document.getElementById('today-kcal-summary').innerHTML=`
+    <div class="card" style="padding:1rem 1.25rem;margin-bottom:0;">
+      <div class="kcal-row"><span>I dag: <strong>${todayKcal}</strong> kcal</span><span>Mål: ${s.kcalTarget} kcal</span></div>
+      <div class="kcal-bar-track"><div class="kcal-bar-fill ${over?'over':''}" style="width:${pct}%"></div></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">${over?(todayKcal-s.kcalTarget)+' kcal over mål':(s.kcalTarget-todayKcal)+' kcal igjen'}</div>
+    </div>`;
+  const el=document.getElementById('food-log');
+  if (!store.food.length) { el.innerHTML='<div class="empty">Ingen måltider registrert ennå.</div>'; return; }
+  el.innerHTML=store.food.map(m=>`
+    <div class="log-item">
+      <div class="log-item-left">
+        <div class="log-item-date">${fmt(m.date)}</div>
+        <div class="log-item-main">${m.desc}${m.amount?` <span style="font-weight:400;color:var(--muted);">· ${m.amount}</span>`:''}</div>
+        <div class="log-item-sub">${m.kcal?m.kcal+' kcal':'–'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill ${mealColor(m.meal)}">${m.meal}</span>
+        <button class="btn danger" onclick="deleteItem('food',${m.id})">Slett</button>
+      </div>
+    </div>`).join('');
+}
+
+window.deleteItem = async function(col, id) { await fsDel(col, id); };
+
+/* ---- KALKULATOR ---- */
+window.calcTraining = function() {
+  const key=document.getElementById('calc-type').value;
+  const min=parseInt(document.getElementById('calc-min').value)||45;
+  const bw=parseInt(document.getElementById('calc-weight').value)||99;
+  const intensity=parseFloat(document.getElementById('calc-intensity').value)||1;
+  const d=TRAINING_DB[key];
+  document.getElementById('calc-result').textContent=`≈ ${Math.round(d.kcalPerMin*min*(bw/80)*intensity)} kcal`;
+  document.getElementById('calc-desc').textContent=d.desc;
+};
+function renderKalkulator() {
+  calcTraining();
+  const bw=store.settings.bodyWeight||99;
+  document.getElementById('calc-weight').value=bw;
+  document.getElementById('training-guide').innerHTML=Object.entries(TRAINING_DB).map(([k,v])=>{
+    const e45=Math.round(v.kcalPerMin*45*(bw/80));
+    const e60=Math.round(v.kcalPerMin*60*(bw/80));
+    return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;gap:8px;">
+      <div><div style="font-size:13px;font-weight:500;">${v.label}</div><div style="font-size:11px;color:var(--muted);">${v.desc}</div></div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:12px;color:var(--accent);font-weight:500;">${e45} kcal/45min</div>
+        <div style="font-size:11px;color:var(--muted);">${e60} kcal/60min</div>
+      </div></div>`;
+  }).join('')+`<div style="font-size:11px;color:var(--muted);margin-top:8px;">For ${bw} kg. Juster i innstillinger.</div>`;
+
+  const cats=[
+    {label:'Frokost',items:['Egg (1 stk)','Egg (2 stk)','Egg (3 stk)','Bacon (3 skiver)','Havregrøt (60g tørr)','Gresk yoghurt (200g)','Skyr (200g)']},
+    {label:'Snacks & tilbehør',items:['Banan','Nøtter (30g)','Skyr m/bær','Avokado (½)','Honning (1 ts)','Peanøttsmør (1 ss)','Proteinpulver (1 dose)']},
+    {label:'Middag',items:['Kyllingbryst (150g)','Laks (150g)','Kyllingwok m/ris','Laks m/ris og brokkoli','Bolognese m/pasta','Taco (2 lefser)','Gyros (pita + kjøtt)','Biffburger (m/brød)']},
+  ];
+  document.getElementById('food-guide').innerHTML=cats.map(cat=>`
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;border:0.5px solid var(--border);">
+      <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">${cat.label}</div>
+      ${cat.items.map(name=>{
+        const f=FOOD_DB.find(x=>x.name===name); if(!f) return '';
+        return `<div onclick="quickAddFood('${f.name.replace(/'/g,"\\'")}',${f.kcal})" style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--border);cursor:pointer;font-size:13px;">
+          <span>${f.name}</span><span style="color:var(--accent);font-weight:500;">${f.kcal}</span></div>`;
+      }).join('')}
+    </div>`).join('');
+}
+window.quickAddFood = function(name,kcal) {
+  document.getElementById('m-desc').value=name;
+  document.getElementById('m-kcal').value=kcal;
+  showTab('mat',document.querySelectorAll('nav button')[3]);
+};
+
+/* ---- OVERVIEW ---- */
+let weightChartInstance=null;
+function renderOverview() {
+  const s=store.settings;
+  const weights=store.weights;
+  const training=store.training;
+  const food=store.food;
+  const lastWeight=weights.length?weights[weights.length-1].kg:null;
+  const firstWeight=weights.length?weights[0].kg:s.startWeight;
+  const lost=lastWeight?+(firstWeight-lastWeight).toFixed(1):0;
+  const toGo=lastWeight?+(lastWeight-s.goal).toFixed(1):+(s.startWeight-s.goal).toFixed(1);
+  const weekStart=getWeekStart();
+  const thisWeek=training.filter(t=>new Date(t.date)>=weekStart).length;
+  const todayKcal=food.filter(m=>m.date===today()).reduce((sum,m)=>sum+m.kcal,0);
+
+  document.getElementById('overview-metrics').innerHTML=`
+    <div class="metric ${lastWeight&&lastWeight<=s.goal+2?'good':''}">
+      <div class="metric-label">Siste vekt</div>
+      <div class="metric-value">${lastWeight?lastWeight.toFixed(1):'–'}</div>
+      <div class="metric-sub">kg · mål: ${s.goal}</div>
+    </div>
+    <div class="metric ${lost>0?'good':''}">
+      <div class="metric-label">Tapt totalt</div>
+      <div class="metric-value">${lost>0?lost.toFixed(1):'–'}</div>
+      <div class="metric-sub">kg siden start</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Igjen til mål</div>
+      <div class="metric-value">${toGo>0?toGo.toFixed(1):'0'}</div>
+      <div class="metric-sub">kg til ${s.goal} kg</div>
+    </div>
+    <div class="metric ${thisWeek>=3?'good':thisWeek>=1?'warn':''}">
+      <div class="metric-label">Økter denne uke</div>
+      <div class="metric-value">${thisWeek}</div>
+      <div class="metric-sub">man–søn · mål: 3+</div>
+    </div>
+    <div class="metric ${todayKcal>0&&todayKcal<=s.kcalTarget?'good':todayKcal>s.kcalTarget?'warn':''}">
+      <div class="metric-label">Kcal i dag</div>
+      <div class="metric-value">${todayKcal||'–'}</div>
+      <div class="metric-sub">mål: ${s.kcalTarget}</div>
+    </div>`;
+
+  if (weightChartInstance) { weightChartInstance.destroy(); weightChartInstance=null; }
+  const canvas=document.getElementById('weight-chart');
+  if (!canvas) return;
+  const vals=weights.map(w=>w.kg);
+  if (vals.length<2) {
+    canvas.parentElement.innerHTML='<div class="empty" style="padding:2rem 0;">Registrer minst to vektmålinger for å se grafen.</div>';
+    return;
+  }
+  weightChartInstance=new Chart(canvas.getContext('2d'),{
+    type:'line',
+    data:{
+      labels:weights.map(w=>fmt(w.date)),
+      datasets:[
+        {label:'Vekt',data:vals,borderColor:'#2D6A4F',backgroundColor:'rgba(45,106,79,0.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#2D6A4F',tension:0.3,fill:true},
+        {label:'Mål',data:Array(vals.length).fill(s.goal),borderColor:'#9FD4B5',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+' kg'}}},
+      scales:{
+        y:{min:Math.min(s.goal-1,...vals)-0.5,max:Math.max(...vals)+0.5,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{family:'DM Sans',size:11},color:'#6B6B66',callback:v=>v.toFixed(1)}},
+        x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:11},color:'#6B6B66'}}
+      }
+    }
+  });
+
+  const recentT=[...training].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)
+    .map(t=>({date:t.date,text:t.type,sub:[t.min?t.min+' min':'',t.intensity?intensityLabel(t.intensity):'',t.kcal?t.kcal+' kcal':''].filter(Boolean).join(' · '),color:typeColor(t.type),tag:'Trening'}));
+  const recentF=[...food].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)
+    .map(m=>({date:m.date,text:m.desc,sub:m.kcal+' kcal',color:mealColor(m.meal),tag:m.meal}));
+  const recent=[...recentT,...recentF].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+
+  const ra=document.getElementById('recent-activity');
+  ra.innerHTML=recent.length?recent.map(r=>`
+    <div class="log-item">
+      <div class="log-item-left">
+        <div class="log-item-date">${fmt(r.date)}</div>
+        <div class="log-item-main">${r.text}</div>
+        ${r.sub?`<div class="log-item-sub">${r.sub}</div>`:''}
+      </div>
+      <span class="pill ${r.color}">${r.tag}</span>
+    </div>`).join(''):'<div class="empty">Ingen aktivitet ennå.</div>';
+}
+
+/* ---- INIT ---- */
+setupListeners();
+renderOverview();
+</script>
+</body>
+</html>
